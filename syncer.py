@@ -10,22 +10,22 @@ DATA STRUCTURES GUIDE
         (client, PLAYBACK_DATA)
     PLAYBACK_DATA:
         (Current state, track URI, track name), time)
-    
+        
 for example:
-    (<spotipy.client.Spotify object>, ((True, 'spotify:track:6TAW00MAPvS59yEoIgtOEI', 'All Alone'), 619))
+    USERLIST[username] = (<spotipy.client.Spotify object>, ((True, 'spotify:track:6TAW00MAPvS59yEoIgtOEI', 'All Alone'), 619))
 """
 import spotipy
 import spotipy.util as util
 import time
 import config
-#import random
+import random
 
 def add_user(username):
     """" Gets auth token and adds user to USERLIST under key = name
     Invokes an external config file for security reasons"""
     global USERLIST
     if username in USERLIST:
-        print("ERROR\\ User already added.")
+        print("ERROR\\ User already added. Skipping...")
     else:
         CLIENT_ID,CLIENT_SECRET,REDIRECT,USER_NAME = config.get_spotify_info(username)
         scope = "user-modify-playback-state user-read-playback-state"
@@ -54,8 +54,7 @@ def parse_current_playback(client,name):
         ms_in = raw_info['progress_ms']
         return (is_playing,track_URI,track_name), ms_in
     else:
-        print("DEBUG: ",name," is playing ad or nothing type")
-        return (False,None,None), 0 #placeholder data for stopped client
+        return (None,None,None), 0 #placeholder data for stopped client
     
 def detect_change(name,is_leader=False):
     """
@@ -69,32 +68,41 @@ def detect_change(name,is_leader=False):
     3) If the change in time is greater than elapsed time + tolerance, detect change (seek)
     Otherwise log new time and declare "no change"
     """
-    global USERLIST, SLEEP_TIME, prevtime
+    global USERLIST, SLEEP_TIME, timing_dict
     TOLERANCE = 0.5 #seconds
     client = USERLIST[name][0]
     old_state, oldprog = USERLIST[name][1]
     new_state, newprog = parse_current_playback(client,name)
-    USERLIST[name] = (USERLIST[name][0], (new_state, newprog))    
-    if is_leader: #timecheck must happen as soon after new state assignment as possible
-        if new_state[0] == old_state[0] == False:
-            elapsed = 0
+    USERLIST[name] = (USERLIST[name][0], (new_state, newprog))
+    
+    if old_state[0] != new_state[0] == None:
+        #newstate is None but old state is NOT
+        return 'stop_event'
+    elif new_state[0] != old_state[0] == None: 
+        #oldstate is None but old state is NOT
+        return 'start_event'
+    
+
+    if new_state[0] == old_state[0] == False:
+        elapsed = 0
+    else:
+        elapsed = time.perf_counter() - timing_dict[name]
+    timing_dict[name] = time.perf_counter()
+    #print("DEBUG: ",round(elapsed,3)," seconds since last leadercheck")
+    if abs(newprog - oldprog) > abs((elapsed+TOLERANCE)*1000):
+        if new_state[1] != old_state[1]:
+            return 'trackchange_event'
         else:
-            elapsed = time.perf_counter() - prevtime
-        prevtime = time.perf_counter()
-        #print("DEBUG: ",round(elapsed,3)," seconds since last leadercheck")
-        if abs(newprog - oldprog) > abs((elapsed+TOLERANCE)*1000):
-            if new_state[1] != old_state[1]:
-                return 'trackchange_event'
-            else:
-                print("skip detected from leader ",name," of", (newprog - oldprog)/1000, "seconds")
-                return 'seek_event'
+            print("\nskip detected from leader ",name," of", (newprog - oldprog)/1000, "seconds\n(",round(elapsed,4),"s since last ping)\n")
+            return 'seek_event'
+            
     if new_state == old_state:
         return False
     else:
         if new_state[1] == old_state[1]:
             return 'pause_event'
         else:
-            return 'trackchange_event'
+            return 'trackchange_event' #extremely unlikely edge case
 
 def set_to_state(leader,follower_list,event_type):
     global USERLIST, SLEEP_TIME
@@ -106,41 +114,50 @@ def set_to_state(leader,follower_list,event_type):
     
     for follower in follower_list:
         client = USERLIST[follower][0]
-        if event_type == 'seek_event':
+        try:
             client.pause_playback()
-            client.seek_track(leader_prog)
-            if leader_state == True: #if playing
-                client.start_playback()
-        elif event_type == "trackchange_event":
-            client.start_playback(uris = [leader_uri],position_ms=leader_prog)
+        except:
+            #if no active devices are found (eg: app is closed mid-switch)
+            print("DEBUG: Inactive follower ",follower," skipped")
         else:
-            print(event_type)
-            print("ERROR: Nonetype detected for leaderstate in improper location")
-        detect_change(follower)
+            if event_type == 'seek_event':
+                client.seek_track(leader_prog)
+                if leader_state == True: #if playing
+                    client.start_playback()
+            elif event_type == "trackchange_event":
+                client.start_playback(uris = [leader_uri],position_ms=leader_prog)
+            else:
+                print(event_type)
+                print("ERROR: Nonetype detected for leaderstate in improper location")
+            detect_change(follower)
     return
 
 
 #wrap this up in nice CLI later
 def main():
-    global USERLIST, prevtime, SLEEP_TIME
+    global USERLIST, timing_dict, SLEEP_TIME
     USERLIST = {}
-    done = False
     add_user("mrsnail4") # DEBUG
+    #done = False
     # while not done:
     #     user_input = input("Enter username (leave blank if done): ")
     #     if not user_input:
     #         done = True
     #     else:
     #         add_user(user_input)
-    namelist = list(USERLIST.keys())
-    SLEEP_TIME = 0.5/len(namelist) #0.5s between API pings (is this the right way to do things?)
     
+    namelist = list(USERLIST.keys())
     leader = sorted(namelist, key = lambda x : USERLIST[x][1][1])[0]
     follower_list = namelist[:namelist.index(leader)] + namelist[namelist.index(leader) + 1:]
-    prevtime = time.perf_counter()
+        
+    SLEEP_TIME = 0.5/len(namelist) #0.5s between API pings (is this the right way to do things?)
+    timing_dict = {}
+    for name in namelist:
+        timing_dict[name] = time.perf_counter()
+
     #MAINLOOP
     while True:
-        time.sleep(SLEEP_TIME)
+        time.sleep(SLEEP_TIME)        
         leader_event = detect_change(leader,True)
         if leader_event:
             print(leader_event, " from ",leader)
@@ -164,13 +181,5 @@ if __name__ == '__main__':
 """
 LIST OF JANK
 janky login
-
-?
-issue if no active devices
-doesnt work with podcasts
-
-
-!
-only leader can scroll back/forwards within same track
-newtrack jank
+anomalouss behaviour with some podcasts (why?)
 """
