@@ -21,11 +21,11 @@ import config
 
 #------------------ GLOBAL VARIABLES ----------------
 
-global TOLERANCE, USERLIST, timing_dict, SMALL_SLEEP
+global TOLERANCE, USERLIST, TIMING_DICT, SMALL_SLEEP
 SMALL_SLEEP = 0.4 #time between pings, this is triggered at the start of the set_state AND detect_state functions
 TOLERANCE = 0.5 #maximum permissible desync (seconds)
-USERLIST = {}
-timing_dict = {}
+USERLIST = {} #dict of users containing their respective API clients and playback data
+TIMING_DICT = {} #time of last ping to highest precision system clock allows
 
 #------------------- AUTH FUNCTION -----------------
 
@@ -68,7 +68,7 @@ def parse_current_playback(client,name):
         return (None,None,None), 0 #placeholder data for stopped client
     
 def detect_change(name,update_only=False):
-    global USERLIST, SMALL_SLEEP, timing_dict
+    global USERLIST, SMALL_SLEEP, TIMING_DICT
     """
     Checks if the current state has changed since the last time it was checked
     the key complexity here is that the "prog" (time) variable is always going
@@ -78,7 +78,7 @@ def detect_change(name,update_only=False):
     1) Measure current time
     2) Compare to previous time to get elapsed time since last check
     3) If the change in time is greater than elapsed time + tolerance, detect change (seek)
-    Otherwise log new time and declare "no change"
+    Otherwise log new time into TIMING_DICT and declare "no change"
     """
     time.sleep(SMALL_SLEEP)
     client = USERLIST[name][0]
@@ -86,7 +86,7 @@ def detect_change(name,update_only=False):
     new_playback_data, newprog = parse_current_playback(client,name)
     USERLIST[name] = (USERLIST[name][0], (new_playback_data, newprog))
     if update_only:
-        timing_dict[name] = time.perf_counter()
+        TIMING_DICT[name] = time.perf_counter()
         return 'update_event' #stop execution early and return here
     else:
         return determine_event_type(name,old_playback_data, oldprog, new_playback_data, newprog)
@@ -102,7 +102,7 @@ def determine_event_type(name,old_playback_data, oldprog, new_playback_data, new
         if (not new_state) and (not old_state):
             elapsed = 0 #track has been paused so we expect no time to have elapsed
         else:
-            elapsed = time.perf_counter() - timing_dict[name]
+            elapsed = time.perf_counter() - TIMING_DICT[name]
             
         if abs(newprog - oldprog) > abs((elapsed+TOLERANCE)*1000):
             event_type = 'seek_event'
@@ -114,16 +114,16 @@ def determine_event_type(name,old_playback_data, oldprog, new_playback_data, new
         else:
             print("Elapsed since last ping: ",elapsed)
             event_type = False #nothing
-    timing_dict[name] = time.perf_counter()       
+    TIMING_DICT[name] = time.perf_counter()       
     return event_type
 
 def set_to_state(leader,follower_list,event_type):
-    global USERLIST, SMALL_SLEEP, timing_dict
+    global USERLIST, SMALL_SLEEP, TIMING_DICT
     """Given a leader and a list of followers,
     make all followers copy the leader"""
     leader_state, leader_uri, _ = USERLIST[leader][1][0]
     leader_prog = USERLIST[leader][1][1]
-    trigger_time = timing_dict[leader] #when the desired leader state was measured
+    trigger_time = TIMING_DICT[leader]
     if leader_state == None:
         return #do nothing if leader is playing nothing (i.e. if they quit)
     
@@ -135,7 +135,7 @@ def set_to_state(leader,follower_list,event_type):
         except:
             #if no active devices are found (eg: app is closed mid-switch)
             print("DEBUG: Inactive follower ",follower," skipped")
-        adjusted_prog = leader_prog + (time.perf_counter() - trigger_time)*1000 #take into account that we spent time setting previous followers
+        adjusted_prog = leader_prog + (time.perf_counter() - trigger_time)*1000
         #adjusted_prog = leader_prog + (time.perf_counter() - trigger_time)*1000
         if event_type == 'seek_event':
             client.seek_track(adjusted_prog)
@@ -159,8 +159,8 @@ def set_to_state(leader,follower_list,event_type):
 #------------------- DRIVER FUNCTION -----------------
 #wrap this up in nice CLI later
 def main():
-    global USERLIST, timing_dict,DEBUG_TIMING_ERROR
-    #add_user("mrsnail4") # DEBUG
+    global USERLIST, TIMING_DICT,DEBUG_TIMING_ERROR
+#    add_user("mrsnail4") # DEBUG
     done = False
     while not done:
         user_input = input("Enter username (leave blank if done): ")
@@ -168,12 +168,13 @@ def main():
             done = True
         else:
             add_user(user_input)
+    
     namelist = list(USERLIST.keys())
     leader = sorted(namelist, key = lambda x : USERLIST[x][1][1])[0]
     follower_list = namelist[:namelist.index(leader)] + namelist[namelist.index(leader) + 1:]
         
     for name in namelist:
-        timing_dict[name] = time.perf_counter()
+        TIMING_DICT[name] = time.perf_counter()
 
     #MAINLOOP
     while True:       
@@ -197,23 +198,3 @@ def main():
                 
 if __name__ == '__main__':
     main()
-"""
-LIST OF JANK
-janky login
-
-?
-issue if no active devices
-doesnt work with podcasts
-
-
-!
-unpauses itself all the time
-sometimes tries to pause when already paused
-newtrack jank
-while LEADER is PLAYING and FOLLOWER switches tracks, crash with no active device found
-if PAUSE: Nonetype Detected
-
-incorporate fixed delay on new track
-
-seek instead of changetrack following nonetype error
-"""
