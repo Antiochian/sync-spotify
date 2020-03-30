@@ -1,6 +1,8 @@
 # sync-spotify
 App to synchronise multiple Spotify accounts together (for group videochats)
 
+The ```two_user.py``` function works pretty well, but only allows for two people to use the app at once, and the "host user" is fixed and unchanging. The ```syncer.py``` function aims for feature-completeness (many users, on-the-fly host switching) but its very buggy and not really in a fit state to run right now.
+
 This is a WORK IN PROGRESS!
 This means:
  - There are various debugging variables and console outputs littering the code
