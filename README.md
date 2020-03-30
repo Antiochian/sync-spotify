@@ -15,8 +15,9 @@ How does it work?
 ---
 The seek-detect is the most interesting part, and it requires a very careful management of timing. Each time the program pings the spotify API, it checks the current progress of the playing track in milliseconds, and if it is more than 0.5s off from what it should be, a "seek" event is logged. In order to figure out what the time *should* be, however, multiple uncontrollable factors must be taken into consideration.
  1. The program itsself may take varying times to run due to different decision pathways
- 2. The response from the API server may take varying times to return
+ 2. The response from the API server may take varying times to return (or a rate limit might enforce a pause)
  3. The execution of a requested action on a users account may take varying times to take place
+ 
 This means that the time that has passed since the last ping is highly variable. To counter this, the time is measured to the highest resolution the system can attain and logged at every ping, so the program always knows how much time has elapsed since the last ping, and thus what the new timestamp should be (the old timestamp + the elapsed time).
 
 In addition as a safeguard, a DYNAMIC_ADJUST global variable tracks the current time error and adjusts the timings accordingly for the next loop. The DYNAMIC_ADJUST safeguard is just a backup - although it is guaranteed to work, it also introduces a slight stutter. I set the DYNAMIC_ADJUST to only kick in if the tracks desyncs by more than a second. In testing so far I have yet to see it cause a stutter except for when I deliberately break the other timing setups.
