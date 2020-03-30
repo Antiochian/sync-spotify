@@ -1,22 +1,15 @@
 # sync-spotify
 App to synchronise multiple Spotify accounts together (for group videochats)
 
-The ```two_user.py``` function works pretty well, but only allows for two people to use the app at once, and the "host user" is fixed and unchanging. The ```syncer.py``` function aims for feature-completeness (many users, on-the-fly host switching) but its very buggy and not really in a fit state to run right now.
+The ```two_user.py``` function works pretty well, but only allows for two people to use the app at once, and the "host user" is fixed and unchanging. 
 
-This is a WORK IN PROGRESS!
-This means:
- - There are various debugging variables and console outputs littering the code
- - It may not work for various corner usecases
- - It is not fully featurecomplete
- - The presentation is rough
- 
-Watch this space!
+The ```syncer.py``` function aims for feature-completeness (many users, on-the-fly host switching) but its very buggy and not really in a fit state to run right now. Its a work in progress!
 
 What is it?
 ---
 This script runs in the background and syncs up multiple spotify accounts to play in-sync. One user is designated as the "leader", and all other users follow what they do. If a non-leader user performs a manual action, that user becomes the new leader and everyone follows them instead.
 
-The great feature that this app has is its ability to detect seek events - when a user skips forward or back in a track. There is no commercial product on the market capable of this, I think due to scaleability issues.
+The great feature that this app has is its ability to detect seek events - when a user skips forward or back in the current track. There is no commercial product on the market capable of this, I think due to scaleability issues (requires a fairly high number of API calls).
 
 How does it work?
 ---
@@ -25,6 +18,8 @@ The seek-detect is the most interesting part, and it requires a very careful man
  2. The response from the API server may take varying times to return
  3. The execution of a requested action on a users account may take varying times to take place
 This means that the time that has passed since the last ping is highly variable. To counter this, the time is measured to the highest resolution the system can attain and logged at every ping, so the program always knows how much time has elapsed since the last ping, and thus what the new timestamp should be (the old timestamp + the elapsed time).
+
+In addition as a safeguard, a DYNAMIC_ADJUST global variable tracks the current time error and adjusts the timings accordingly for the next loop. The DYNAMIC_ADJUST safeguard is just a backup - although it is guaranteed to work, it also introduces a slight stutter. I set the DYNAMIC_ADJUST to only kick in if the tracks desyncs by more than a second. In testing so far I have yet to see it cause a stutter except for when I deliberately break the other timing setups.
 
 To test this I set a random sleep time between 0-5 seconds to occur on every loop for 500 loops, and logged the difference between the predicted elapsed time and the actual elapsed time. The y-axis is the timing error in milliseconds.
 ![Timing Error](timing_error.png)
