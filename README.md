@@ -38,7 +38,7 @@ To Do:
  - [x] ~apply new track event globally to all users~
  - [x] ~account for latency delay in API calls~
  - [x] ~account for latency delay in client response~
- - [x] Fix edge cases (device change, connection loss, drop-in/drop-out, etc)
+ - [x] ~Fix edge cases (device change, connection loss, drop-in/drop-out, etc)~
  - [ ] Write unit tests
  - [ ] Make CLI
  - [ ] Make GUI (?)
