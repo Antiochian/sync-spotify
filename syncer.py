@@ -2,7 +2,7 @@
 """
 Created on Sun Mar 29 11:39:44 2020
 
-@author: Hal
+@author: Antiochian
 
 DATA STRUCTURES GUIDE
     USER in USERLIST {}:
