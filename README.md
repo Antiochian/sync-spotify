@@ -7,7 +7,9 @@ This means:
  - It may not work for various corner usecases
  - It is not fully featurecomplete
  - The presentation is rough
+ 
 Watch this space!
+
 What is it?
 ---
 This script runs in the background and syncs up multiple spotify accounts to play in-sync. One user is designated as the "leader", and all other users follow what they do. If a non-leader user performs a manual action, that user becomes the new leader and everyone follows them instead.
@@ -30,6 +32,7 @@ The average error was 0.2ms, the average absolute error was 3ms, and the standar
 I set an error tolerance of 500ms to be safe, although the highest error I have ever recorded in any tests is only 400ms.
 
 To Do:
+---
  - [x] ~set up API authorisation token system for N users~
  - [x] ~detect new track event (change current track, pause, seek forward/back)~
  - [x] ~apply new track event globally to all users~
